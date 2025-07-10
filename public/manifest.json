@@ -1,0 +1,43 @@
+
+{
+  "manifest_version": 3,
+  "name": "AI Test Automation Assistant",
+  "version": "1.0",
+  "description": "Intelligent test automation using AI to analyze questions and select answers",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "https://*.srichaitanya.edu.in/*",
+    "https://*.devinfinitylearn.in/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "AI Test Assistant"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.srichaitanya.edu.in/*",
+        "https://*.devinfinitylearn.in/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
