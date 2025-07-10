@@ -5,7 +5,7 @@ let currentTab = null;
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('AI Test Assistant installed');
+  console.log('AI Test Assistant for Sri Chaitanya Meta installed');
 });
 
 // Listen for messages from popup and content scripts
@@ -33,24 +33,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .catch(error => sendResponse({ success: false, error: error.message }));
       return true;
     
+    case 'saveSettings':
+      saveSettings(request.data)
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+    
+    case 'loadSettings':
+      loadSettings()
+        .then(settings => sendResponse({ success: true, data: settings }))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+    
     default:
       sendResponse({ success: false, error: 'Unknown action' });
   }
 });
 
+async function saveSettings(settings) {
+  await chrome.storage.local.set({
+    aiTestAssistantSettings: settings
+  });
+}
+
+async function loadSettings() {
+  const result = await chrome.storage.local.get(['aiTestAssistantSettings']);
+  return result.aiTestAssistantSettings || {};
+}
+
 async function activateExtension(config) {
   isExtensionActive = true;
   
-  // Store configuration
+  // Store configuration permanently
   await chrome.storage.local.set({
     apiKey: config.apiKey,
     isActive: true,
-    config: config
+    config: config,
+    aiTestAssistantSettings: config
   });
   
   // Inject content script into current tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTab = tab;
+  
+  // Check if we're on the correct website
+  if (!tab.url.includes('srichaitanyameta.com')) {
+    throw new Error('This extension only works on srichaitanyameta.com');
+  }
   
   try {
     await chrome.scripting.executeScript({
@@ -65,6 +94,7 @@ async function activateExtension(config) {
     });
   } catch (error) {
     console.error('Failed to inject content script:', error);
+    throw error;
   }
 }
 
@@ -90,7 +120,8 @@ async function analyzeQuestionWithAI(questionData) {
   const prompt = createAnalysisPrompt(questionData);
   
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+    // Use the correct Gemini model
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,10 +142,16 @@ async function analyzeQuestionWithAI(questionData) {
     });
     
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(`API request failed: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
     }
     
     const data = await response.json();
+    
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Invalid response from AI service');
+    }
+    
     const result = data.candidates[0].content.parts[0].text;
     
     return parseAIResponse(result);
@@ -126,7 +163,7 @@ async function analyzeQuestionWithAI(questionData) {
 
 function createAnalysisPrompt(questionData) {
   return `
-You are an expert test-taking AI assistant. Analyze the following multiple choice question and provide the correct answer.
+You are an expert test-taking AI assistant for Sri Chaitanya Meta educational platform. Analyze the following multiple choice question and provide the correct answer.
 
 Question: ${questionData.question}
 
@@ -141,11 +178,12 @@ Answer:`;
 
 function parseAIResponse(response) {
   // Extract the answer letter from AI response
-  const match = response.trim().match(/^[ABCD]/i);
+  const cleanResponse = response.trim().toUpperCase();
+  const match = cleanResponse.match(/^[ABCD]/);
   if (match) {
     return {
-      answer: match[0].toUpperCase(),
-      confidence: 0.9 // We could implement confidence scoring later
+      answer: match[0],
+      confidence: 0.9
     };
   }
   

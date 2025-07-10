@@ -1,9 +1,9 @@
 
 {
   "manifest_version": 3,
-  "name": "AI Test Automation Assistant",
+  "name": "AI Test Automation Assistant - Sri Chaitanya",
   "version": "1.0",
-  "description": "Intelligent test automation using AI to analyze questions and select answers",
+  "description": "Intelligent test automation using AI to analyze questions and select answers for Sri Chaitanya Meta platform",
   "permissions": [
     "activeTab",
     "scripting",
@@ -12,8 +12,7 @@
     "webNavigation"
   ],
   "host_permissions": [
-    "https://*.srichaitanya.edu.in/*",
-    "https://*.devinfinitylearn.in/*",
+    "https://*.srichaitanyameta.com/*",
     "https://generativelanguage.googleapis.com/*"
   ],
   "action": {
@@ -26,8 +25,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.srichaitanya.edu.in/*",
-        "https://*.devinfinitylearn.in/*"
+        "https://*.srichaitanyameta.com/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],
