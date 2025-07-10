@@ -10,6 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Bot, Settings, Activity } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
+interface ExtensionResponse {
+  success: boolean;
+  error?: string;
+}
+
 export const ExtensionPopup = () => {
   const [isActive, setIsActive] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -106,13 +111,13 @@ export const ExtensionPopup = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: (error as Error).message,
         variant: "destructive",
       });
     }
   };
 
-  const sendMessageToBackground = async (message: any) => {
+  const sendMessageToBackground = async (message: any): Promise<ExtensionResponse> => {
     // In actual Chrome extension, this would use chrome.runtime.sendMessage
     // For demo purposes, we'll simulate the response
     return new Promise((resolve) => {
