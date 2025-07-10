@@ -8,11 +8,12 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Bot, Settings, Activity } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface ExtensionResponse {
   success: boolean;
   error?: string;
+  data?: any;
 }
 
 export const ExtensionPopup = () => {
@@ -81,14 +82,18 @@ export const ExtensionPopup = () => {
     try {
       if (isActive) {
         // Deactivate extension
-        await sendMessageToBackground({ action: 'deactivateExtension' });
-        setIsActive(false);
-        setStatus('Inactive');
-        
-        toast({
-          title: "Extension Deactivated",
-          description: "AI Test Assistant has been turned off.",
-        });
+        const response = await sendMessageToBackground({ action: 'deactivateExtension' });
+        if (response.success) {
+          setIsActive(false);
+          setStatus('Inactive');
+          
+          toast({
+            title: "Extension Deactivated",
+            description: "AI Test Assistant has been turned off.",
+          });
+        } else {
+          throw new Error(response.error || 'Deactivation failed');
+        }
       } else {
         // Activate extension
         const response = await sendMessageToBackground({
