@@ -1,4 +1,3 @@
-
 // Content script for Sri Chaitanya Meta test automation
 class SriChaitanyaTestAutomation {
   constructor() {
@@ -10,7 +9,7 @@ class SriChaitanyaTestAutomation {
     this.isProcessing = false;
     this.questionSelectors = [
       '.question-text',
-      '.question-content',
+      '.question-content', 
       '.exam-question .question',
       '[class*="question"]',
       '.ques-text',
@@ -23,7 +22,8 @@ class SriChaitanyaTestAutomation {
       '.answer-option',
       '.mcq-option label',
       'input[type="radio"] + label',
-      '.option-text'
+      '.option-text',
+      '.option .assessment_pl-10'
     ];
   }
 
@@ -185,7 +185,7 @@ class SriChaitanyaTestAutomation {
         if (this.config.autoNext) {
           this.updateStatus('⏳ Auto-advancing...');
           setTimeout(() => {
-            this.clickNextButton();
+            this.clickNextOrFinishButton();
           }, this.config.delay || 3000);
         }
       } else {
@@ -219,11 +219,11 @@ class SriChaitanyaTestAutomation {
     const questionElement = this.findQuestionElement();
     if (!questionElement) return null;
 
-    // Extract question text
+    // Extract question text with better cleaning
     const questionText = this.extractQuestionText(questionElement);
     
-    // Extract options
-    const options = this.extractOptions();
+    // Extract options with improved detection
+    const options = this.extractOptionsImproved();
 
     if (!questionText || options.length === 0) {
       return null;
@@ -232,46 +232,76 @@ class SriChaitanyaTestAutomation {
     return {
       question: questionText,
       options: options,
-      questionNumber: this.extractQuestionNumber()
+      questionNumber: this.extractQuestionNumber(),
+      totalQuestions: this.getTotalQuestions(),
+      currentProgress: this.getCurrentProgress()
     };
   }
 
   extractQuestionText(questionElement) {
-    // Remove option elements and get clean question text
-    const clone = questionElement.cloneNode(true);
-    const optionElements = clone.querySelectorAll('.option, .custom-radio, .mcq-option, .answer-option');
-    optionElements.forEach(el => el.remove());
+    // Get the question content div specifically
+    const questionContent = questionElement.querySelector('.question-content, .assessment_pb-5');
+    if (questionContent) {
+      // Clone to avoid modifying original
+      const clone = questionContent.cloneNode(true);
+      
+      // Remove all option elements
+      const optionElements = clone.querySelectorAll('.option, .custom-radio, .mcq-option, .answer-option');
+      optionElements.forEach(el => el.remove());
+      
+      let text = clone.textContent.trim();
+      
+      // Clean up common prefixes
+      text = text.replace(/^(Question\s*\d+[:.]\s*|Q\s*\d+[:.]\s*)/i, '');
+      text = text.replace(/^\d+[:.]\s*/, '');
+      
+      return text;
+    }
     
-    let text = clone.textContent.trim();
-    
-    // Clean up common prefixes
-    text = text.replace(/^(Question\s*\d+[:.]\s*|Q\s*\d+[:.]\s*)/i, '');
-    text = text.replace(/^\d+[:.]\s*/, '');
-    
-    return text;
+    return null;
   }
 
-  extractOptions() {
+  extractOptionsImproved() {
     const options = [];
     
-    // Try multiple selectors for options
-    for (const selector of this.optionSelectors) {
-      const optionElements = document.querySelectorAll(selector);
-      
-      if (optionElements.length > 0) {
-        optionElements.forEach(label => {
+    // Look for option containers first
+    const optionContainers = document.querySelectorAll('.option');
+    
+    if (optionContainers.length > 0) {
+      optionContainers.forEach(container => {
+        // Look for label within each option container
+        const label = container.querySelector('label, .assessment_pl-10');
+        if (label) {
           let text = label.textContent.trim();
           // Remove option prefixes like "A)", "B)", etc.
           text = text.replace(/^[A-D][).:]\s*/i, '');
           if (text && text.length > 1) {
             options.push(text);
           }
-        });
+        }
+      });
+    }
+    
+    // Fallback to other selectors if no options found
+    if (options.length === 0) {
+      for (const selector of this.optionSelectors) {
+        const optionElements = document.querySelectorAll(selector);
         
-        if (options.length >= 2) {
-          break; // Found valid options
-        } else {
-          options.length = 0; // Clear and try next selector
+        if (optionElements.length > 0) {
+          optionElements.forEach(label => {
+            let text = label.textContent.trim();
+            // Remove option prefixes like "A)", "B)", etc.
+            text = text.replace(/^[A-D][).:]\s*/i, '');
+            if (text && text.length > 1) {
+              options.push(text);
+            }
+          });
+          
+          if (options.length >= 2) {
+            break; // Found valid options
+          } else {
+            options.length = 0; // Clear and try next selector
+          }
         }
       }
     }
@@ -280,22 +310,30 @@ class SriChaitanyaTestAutomation {
   }
 
   extractQuestionNumber() {
-    const questionNoSelectors = [
-      '.question-no',
-      '.question-number',
-      '.q-number',
-      '[class*="question-num"]'
-    ];
-    
-    for (const selector of questionNoSelectors) {
-      const questionNoElement = document.querySelector(selector);
-      if (questionNoElement) {
-        const match = questionNoElement.textContent.match(/\d+/);
-        return match ? parseInt(match[0]) : 1;
-      }
+    // Look for question number in the question span
+    const questionNoElement = document.querySelector('.question-no');
+    if (questionNoElement) {
+      const match = questionNoElement.textContent.match(/\d+/);
+      return match ? parseInt(match[0]) : 1;
     }
     
     return 1;
+  }
+
+  getTotalQuestions() {
+    // Look for total questions in the progress or question list
+    const questionButtons = document.querySelectorAll('.question-no button');
+    return questionButtons.length > 0 ? questionButtons.length : 35; // Default to 35 if not found
+  }
+
+  getCurrentProgress() {
+    // Extract progress from progress bar
+    const progressBar = document.querySelector('.progress-bar');
+    if (progressBar) {
+      const ariaValue = progressBar.getAttribute('aria-valuenow');
+      return ariaValue ? parseInt(ariaValue) : 0;
+    }
+    return 0;
   }
 
   async selectAnswer(answerLetter) {
@@ -307,6 +345,7 @@ class SriChaitanyaTestAutomation {
       'input[name*="answer"]',
       'input[name*="option"]',
       'input[name*="choice"]',
+      'input[name="smcq"]',
       '.custom-radio input',
       '.option input[type="radio"]'
     ];
@@ -364,35 +403,63 @@ class SriChaitanyaTestAutomation {
     }
   }
 
-  clickNextButton() {
-    const nextButtonSelectors = [
-      '.nav-btn-right',
-      '.nextAndsave',
-      'button:contains("SKIP")',
-      'button:contains("Next")',
-      '.next-button',
-      '.btn-next',
-      '[class*="next"]',
-      'button[onclick*="next"]'
-    ];
+  clickNextOrFinishButton() {
+    // First try to find FINISH button (appears in header)
+    const finishButton = document.querySelector('.submit button, button:contains("FINISH")');
+    
+    // Then try to find NEXT button (appears in action area)
+    const nextButton = document.querySelector('.nextAndsave, button:contains("NEXT")');
+    
+    // Determine which button to click based on context
+    let buttonToClick = null;
+    
+    // Check if FINISH button is visible and enabled
+    if (finishButton && this.isVisible(finishButton) && !finishButton.disabled) {
+      buttonToClick = finishButton;
+      this.updateStatus('🏁 Clicking FINISH button...');
+    }
+    // Otherwise use NEXT button
+    else if (nextButton && this.isVisible(nextButton) && !nextButton.disabled) {
+      buttonToClick = nextButton;
+      this.updateStatus('➡️ Clicking NEXT button...');
+    }
+    
+    // Fallback to other selectors
+    if (!buttonToClick) {
+      const fallbackSelectors = [
+        '.nav-btn-right',
+        'button:contains("SKIP")',
+        'button:contains("Next")',
+        '.next-button',
+        '.btn-next',
+        '[class*="next"]',
+        'button[onclick*="next"]'
+      ];
 
-    for (const selector of nextButtonSelectors) {
-      let button;
-      
-      if (selector.includes(':contains')) {
-        // Handle text-based selectors
-        const text = selector.match(/contains\("([^"]+)"\)/)[1];
-        button = Array.from(document.querySelectorAll('button')).find(btn => 
-          btn.textContent.toLowerCase().includes(text.toLowerCase())
-        );
-      } else {
-        button = document.querySelector(selector);
+      for (const selector of fallbackSelectors) {
+        let button;
+        
+        if (selector.includes(':contains')) {
+          // Handle text-based selectors
+          const text = selector.match(/contains\("([^"]+)"\)/)[1];
+          button = Array.from(document.querySelectorAll('button')).find(btn => 
+            btn.textContent.toLowerCase().includes(text.toLowerCase())
+          );
+        } else {
+          button = document.querySelector(selector);
+        }
+        
+        if (button && this.isVisible(button) && !button.disabled) {
+          buttonToClick = button;
+          break;
+        }
       }
-      
-      if (button && this.isVisible(button) && !button.disabled) {
-        this.humanLikeClick(button);
-        break;
-      }
+    }
+    
+    if (buttonToClick) {
+      this.humanLikeClick(buttonToClick);
+    } else {
+      this.updateStatus('❌ No next/finish button found');
     }
   }
 
