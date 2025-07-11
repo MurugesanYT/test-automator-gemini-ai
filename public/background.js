@@ -1,38 +1,228 @@
 
-// Background service worker - now uses modular components
+// Background service worker for the Chrome extension
 let isExtensionActive = false;
-let storageManager, tabManager, aiAnalyzer;
+let currentTab = null;
+
+// Storage management
+class StorageManager {
+  async saveSettings(settings) {
+    await chrome.storage.local.set({
+      aiTestAssistantSettings: settings
+    });
+  }
+
+  async loadSettings() {
+    const result = await chrome.storage.local.get(['aiTestAssistantSettings']);
+    return result.aiTestAssistantSettings || {};
+  }
+
+  async saveConfig(config) {
+    await chrome.storage.local.set({
+      apiKey: config.apiKey,
+      isActive: true,
+      config: config,
+      aiTestAssistantSettings: config
+    });
+  }
+
+  async getApiKey() {
+    const { apiKey } = await chrome.storage.local.get(['apiKey']);
+    return apiKey;
+  }
+
+  async setInactive() {
+    await chrome.storage.local.set({ isActive: false });
+  }
+}
+
+// AI Analysis
+class AIAnalyzer {
+  constructor() {
+    this.apiKey = null;
+  }
+
+  async init() {
+    const { apiKey } = await chrome.storage.local.get(['apiKey']);
+    this.apiKey = apiKey;
+  }
+
+  async analyzeQuestion(questionData) {
+    await this.init(); // Refresh API key
+    
+    if (!this.apiKey) {
+      throw new Error('Gemini API key not configured');
+    }
+    
+    const prompt = this.createAnalysisPrompt(questionData);
+    
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            topK: 1,
+            topP: 1,
+            maxOutputTokens: 1024,
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API request failed: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error('Invalid response from AI service');
+      }
+      
+      const result = data.candidates[0].content.parts[0].text;
+      
+      return this.parseAIResponse(result);
+    } catch (error) {
+      console.error('AI analysis failed:', error);
+      throw error;
+    }
+  }
+
+  createAnalysisPrompt(questionData) {
+    return `
+You are an expert test-taking AI assistant for Sri Chaitanya Meta educational platform. You must analyze the following multiple choice question and provide the CORRECT answer.
+
+IMPORTANT INSTRUCTIONS:
+1. Read the COMPLETE question carefully
+2. Read ALL available options thoroughly
+3. Use your knowledge to determine the scientifically/academically correct answer
+4. Double-check your reasoning before responding
+5. Provide ONLY the letter of the correct answer (A, B, C, or D)
+
+Question: ${questionData.question}
+
+Available Options:
+${questionData.options.map((option, index) => `${String.fromCharCode(65 + index)}) ${option}`).join('\n')}
+
+CRITICAL: Analyze each option carefully and select the one that is factually correct. Do not guess. Use your educational knowledge to determine the right answer.
+
+Respond with ONLY the letter of the correct answer (A, B, C, or D). No explanation needed - just the single letter.
+
+Answer:`;
+  }
+
+  parseAIResponse(response) {
+    const cleanResponse = response.trim().toUpperCase();
+    const match = cleanResponse.match(/^[ABCD]/);
+    if (match) {
+      return {
+        answer: match[0],
+        confidence: 0.9
+      };
+    }
+    
+    const letters = response.match(/[ABCD]/gi);
+    if (letters && letters.length > 0) {
+      return {
+        answer: letters[0].toUpperCase(),
+        confidence: 0.7
+      };
+    }
+    
+    throw new Error('Could not parse AI response');
+  }
+}
+
+// Tab management
+class TabManager {
+  constructor() {
+    this.currentTab = null;
+  }
+
+  async activateExtension(config, storageManager) {
+    await storageManager.saveConfig(config);
+    
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    this.currentTab = tab;
+    currentTab = tab; // Set global reference
+    
+    if (!tab.url.includes('srichaitanyameta.com')) {
+      throw new Error('This extension only works on srichaitanyameta.com');
+    }
+    
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: [
+          'content/automation-core.js',
+          'content/ui-manager.js', 
+          'content/question-extractor.js',
+          'content/interaction-handler.js',
+          'content/observer-manager.js',
+          'content.js'
+        ]
+      });
+      
+      // Small delay to ensure scripts are loaded
+      setTimeout(() => {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'extensionActivated',
+          config: config
+        });
+      }, 500);
+      
+    } catch (error) {
+      console.error('Failed to inject content script:', error);
+      throw error;
+    }
+  }
+
+  deactivateExtension(storageManager) {
+    storageManager.setInactive();
+    
+    if (this.currentTab || currentTab) {
+      const tabId = (this.currentTab || currentTab).id;
+      chrome.tabs.sendMessage(tabId, {
+        action: 'extensionDeactivated'
+      });
+    }
+  }
+
+  async captureScreenshot() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  }
+}
 
 // Initialize modules
-async function initializeModules() {
-  // Load the module files first
-  await import('./background/storage-manager.js');
-  await import('./background/tab-manager.js');
-  await import('./background/ai-analyzer.js');
-  
-  storageManager = new StorageManager();
-  tabManager = new TabManager();
-  aiAnalyzer = new AIAnalyzer();
-  
-  await aiAnalyzer.init();
-}
+const storageManager = new StorageManager();
+const tabManager = new TabManager();
+const aiAnalyzer = new AIAnalyzer();
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
   console.log('AI Test Assistant for Sri Chaitanya Meta installed');
-  initializeModules();
 });
-
-// Initialize on startup
-initializeModules();
 
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'activateExtension':
-      activateExtension(request.data);
-      sendResponse({ success: true });
-      break;
+      activateExtension(request.data)
+        .then(() => sendResponse({ success: true }))
+        .catch(error => {
+          console.error('Activation failed:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+      return true; // Keep message channel open for async response
     
     case 'deactivateExtension':
       deactivateExtension();
@@ -43,7 +233,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       aiAnalyzer.analyzeQuestion(request.data)
         .then(result => sendResponse({ success: true, data: result }))
         .catch(error => sendResponse({ success: false, error: error.message }));
-      return true; // Keep message channel open for async response
+      return true;
     
     case 'captureScreenshot':
       tabManager.captureScreenshot()
