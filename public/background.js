@@ -98,25 +98,36 @@ class AIAnalyzer {
 
   createAnalysisPrompt(questionData) {
     return `
-You are an expert test-taking AI assistant for Sri Chaitanya Meta educational platform. You must analyze the following multiple choice question and provide the CORRECT answer.
+You are a highly knowledgeable AI assistant specializing in academic subjects for Sri Chaitanya Meta educational platform. Your task is to analyze multiple choice questions and provide the SCIENTIFICALLY and ACADEMICALLY CORRECT answer.
 
-IMPORTANT INSTRUCTIONS:
-1. Read the COMPLETE question carefully
-2. Read ALL available options thoroughly
-3. Use your knowledge to determine the scientifically/academically correct answer
-4. Double-check your reasoning before responding
-5. Provide ONLY the letter of the correct answer (A, B, C, or D)
+CRITICAL INSTRUCTIONS:
+1. Read the ENTIRE question carefully - do not miss any details
+2. Examine ALL available options thoroughly 
+3. Use your comprehensive knowledge base to determine the factually correct answer
+4. Consider the context and subject matter (Biology, Chemistry, Physics, Math, etc.)
+5. Apply scientific principles and established academic facts
+6. Double-check your reasoning before responding
 
-Question: ${questionData.question}
+COMPLETE QUESTION:
+${questionData.question}
 
-Available Options:
+ALL AVAILABLE OPTIONS:
 ${questionData.options.map((option, index) => `${String.fromCharCode(65 + index)}) ${option}`).join('\n')}
 
-CRITICAL: Analyze each option carefully and select the one that is factually correct. Do not guess. Use your educational knowledge to determine the right answer.
+QUESTION NUMBER: ${questionData.questionNumber || 'Unknown'}
 
-Respond with ONLY the letter of the correct answer (A, B, C, or D). No explanation needed - just the single letter.
+ANALYSIS REQUIREMENTS:
+- This appears to be from an educational test/exam
+- The question requires subject matter expertise
+- Only ONE option is correct based on academic knowledge
+- Use established scientific/academic principles to determine the answer
 
-Answer:`;
+RESPONSE FORMAT:
+Respond with ONLY the letter of the correct answer (A, B, C, or D).
+Do NOT include explanations, reasoning, or additional text.
+Just provide the single letter that corresponds to the factually correct answer.
+
+CORRECT ANSWER:`;
   }
 
   parseAIResponse(response) {

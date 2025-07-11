@@ -71,43 +71,113 @@ class InteractionHandler {
   }
 
   clickNextButton() {
-    // Updated button selectors to handle both NEXT and FINISH buttons
-    const nextButtonSelectors = [
-      '.nav-btn-right',
-      '.nextAndsave',
-      'button:contains("SKIP")',
-      'button:contains("Next")',
-      'button:contains("NEXT")',
-      'button:contains("FINISH")',
-      'button:contains("Submit")',
-      '.next-button',
-      '.btn-next',
-      '.finish-button',
-      '.submit-button',
-      '[class*="next"]',
-      '[class*="finish"]',
-      'button[onclick*="next"]',
-      'button[onclick*="finish"]'
+    console.log('🔍 Looking for Next/Finish button...');
+    
+    // More comprehensive button detection based on the provided HTML
+    const buttonSelectors = [
+      // Direct text matching
+      () => Array.from(document.querySelectorAll('button')).find(btn => 
+        btn.textContent.trim().toUpperCase().includes('NEXT')),
+      () => Array.from(document.querySelectorAll('button')).find(btn => 
+        btn.textContent.trim().toUpperCase().includes('FINISH')),
+      () => Array.from(document.querySelectorAll('button')).find(btn => 
+        btn.textContent.trim().toUpperCase().includes('SUBMIT')),
+      () => Array.from(document.querySelectorAll('button')).find(btn => 
+        btn.textContent.trim().toUpperCase().includes('SKIP')),
+      
+      // Class-based selectors from the HTML
+      () => document.querySelector('.nextAndsave'),
+      () => document.querySelector('.nav-btn-right'),
+      () => document.querySelector('.next-button'),
+      () => document.querySelector('.btn-next'),
+      () => document.querySelector('.finish-button'),
+      () => document.querySelector('.submit-button'),
+      
+      // Generic class patterns
+      () => document.querySelector('[class*="next"]'),
+      () => document.querySelector('[class*="finish"]'),
+      () => document.querySelector('[class*="submit"]'),
+      
+      // Type-based selectors
+      () => document.querySelector('button[type="submit"]'),
+      () => document.querySelector('input[type="submit"]'),
+      
+      // Onclick-based selectors
+      () => document.querySelector('button[onclick*="next"]'),
+      () => document.querySelector('button[onclick*="finish"]'),
+      () => document.querySelector('button[onclick*="submit"]')
     ];
 
-    for (const selector of nextButtonSelectors) {
-      let button;
-      
-      if (selector.includes(':contains')) {
-        // Handle text-based selectors
-        const text = selector.match(/contains\("([^"]+)"\)/)[1];
-        button = Array.from(document.querySelectorAll('button')).find(btn => 
-          btn.textContent.toLowerCase().includes(text.toLowerCase())
-        );
-      } else {
-        button = document.querySelector(selector);
+    for (let i = 0; i < buttonSelectors.length; i++) {
+      try {
+        const button = buttonSelectors[i]();
+        
+        if (button && this.automation.isVisible(button) && !button.disabled) {
+          console.log(`✅ Found button: "${button.textContent.trim()}" using selector ${i}`);
+          console.log('Button element:', button);
+          
+          // Scroll to button first
+          button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          // Wait a moment for scroll
+          setTimeout(async () => {
+            try {
+              // Try multiple click approaches
+              await this.forceClick(button);
+              console.log(`🖱️ Successfully clicked: ${button.textContent.trim()}`);
+            } catch (error) {
+              console.error('Click failed:', error);
+            }
+          }, 500);
+          
+          return true; // Button found and clicked
+        }
+      } catch (error) {
+        console.warn(`Selector ${i} failed:`, error);
       }
-      
-      if (button && this.automation.isVisible(button) && !button.disabled) {
-        this.humanLikeClick(button);
-        console.log(`Clicked button: ${button.textContent.trim()}`);
-        break;
-      }
+    }
+    
+    console.log('❌ No Next/Finish button found');
+    return false;
+  }
+
+  async forceClick(element) {
+    // Multiple click strategies to ensure it works
+    
+    // Strategy 1: Focus and direct click
+    element.focus();
+    await this.automation.sleep(100);
+    
+    // Strategy 2: Mouse events
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    
+    const mouseEvents = [
+      new MouseEvent('mouseover', { bubbles: true, cancelable: true, clientX: x, clientY: y }),
+      new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y }),
+      new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x, clientY: y }),
+      new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y })
+    ];
+    
+    for (const event of mouseEvents) {
+      element.dispatchEvent(event);
+      await this.automation.sleep(50);
+    }
+    
+    // Strategy 3: Direct click
+    element.click();
+    
+    // Strategy 4: If it's a form button, try triggering form submission
+    const form = element.closest('form');
+    if (form) {
+      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+      form.dispatchEvent(submitEvent);
+    }
+    
+    // Strategy 5: Try triggering any onclick handler directly
+    if (element.onclick) {
+      element.onclick();
     }
   }
 
