@@ -5,21 +5,261 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Test Assistant</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
     body {
       width: 400px;
       height: 600px;
-      margin: 0;
-      padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%);
+    }
+    
+    .container {
+      padding: 16px;
+      height: 100%;
+      overflow-y: auto;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .header h1 {
+      font-size: 20px;
+      font-weight: bold;
+      color: #1f2937;
+      margin-bottom: 8px;
+    }
+    
+    .status {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .status.active {
+      background-color: #dcfce7;
+      color: #166534;
+    }
+    
+    .status.inactive {
+      background-color: #f3f4f6;
+      color: #374151;
+    }
+    
+    .website-status {
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    
+    .form-section {
+      margin-bottom: 16px;
+    }
+    
+    .form-group {
+      margin-bottom: 12px;
+    }
+    
+    .label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+    
+    .input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    .input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .input-group {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .flex-1 {
+      flex: 1;
+    }
+    
+    .button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .button.primary {
+      background-color: #3b82f6;
+      color: white;
+    }
+    
+    .button.primary:hover {
+      background-color: #2563eb;
+    }
+    
+    .button.success {
+      background-color: #10b981;
+      color: white;
+    }
+    
+    .button.success:hover {
+      background-color: #059669;
+    }
+    
+    .button.danger {
+      background-color: #ef4444;
+      color: white;
+    }
+    
+    .button.danger:hover {
+      background-color: #dc2626;
+    }
+    
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .button.full-width {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    
+    .checkbox {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .help-text {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    
+    .warning {
+      background-color: #fefce8;
+      border: 1px solid #fde047;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 16px;
+    }
+    
+    .warning-text {
+      font-size: 14px;
+      color: #a16207;
+    }
+    
+    .link {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
+    
+    .toast {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      padding: 12px;
+      border-radius: 6px;
+      color: white;
+      z-index: 1000;
+      font-size: 14px;
+    }
+    
+    .toast.success {
+      background-color: #10b981;
+    }
+    
+    .toast.error {
+      background-color: #ef4444;
     }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div class="container">
+    <div class="card header">
+      <h1>🤖 Sri Chaitanya AI Assistant</h1>
+      <div id="status" class="status inactive">Inactive</div>
+      <div class="website-status">
+        <span id="website-icon">⚠️</span>
+        <span id="website-text">Wrong website</span>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="form-section">
+        <div class="form-group">
+          <label class="label">Gemini API Key</label>
+          <div class="input-group">
+            <input type="password" id="apiKey" placeholder="Enter your Gemini API key" class="input flex-1">
+            <button id="testBtn" class="button primary">Test</button>
+          </div>
+          <div class="help-text">
+            Get your free API key from 
+            <a href="https://ai.google.dev/" target="_blank" class="link">Google AI Studio</a>
+          </div>
+        </div>
+
+        <div class="checkbox-group">
+          <label class="label">Auto-process questions</label>
+          <input type="checkbox" id="autoProcess" class="checkbox" checked>
+        </div>
+
+        <div class="checkbox-group">
+          <label class="label">Auto-advance to next</label>
+          <input type="checkbox" id="autoNext" class="checkbox">
+        </div>
+
+        <div class="form-group">
+          <label class="label">Delay between actions (ms)</label>
+          <input type="number" id="delay" value="3000" min="1000" max="10000" step="500" class="input">
+        </div>
+      </div>
+
+      <div class="form-section">
+        <button id="toggleBtn" class="button success full-width">Activate Assistant</button>
+        <button id="saveBtn" class="button primary full-width">Save Settings</button>
+      </div>
+
+      <div class="warning">
+        <div class="warning-text">
+          <strong>Educational Use Only:</strong> This extension is for educational purposes. Use responsibly and in accordance with your institution's policies.
+        </div>
+      </div>
+    </div>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>
