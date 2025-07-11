@@ -117,7 +117,7 @@ async function analyzeQuestionWithAI(questionData) {
     throw new Error('Gemini API key not configured');
   }
   
-  const prompt = createEnhancedAnalysisPrompt(questionData);
+  const prompt = createAnalysisPrompt(questionData);
   
   try {
     // Use the correct Gemini model
@@ -161,30 +161,19 @@ async function analyzeQuestionWithAI(questionData) {
   }
 }
 
-function createEnhancedAnalysisPrompt(questionData) {
+function createAnalysisPrompt(questionData) {
   return `
-You are an expert AI assistant specialized in academic test-taking for Sri Chaitanya Meta educational platform. Your task is to analyze multiple choice questions with maximum accuracy.
+You are an expert test-taking AI assistant for Sri Chaitanya Meta educational platform. Analyze the following multiple choice question and provide the correct answer.
 
-QUESTION ANALYSIS:
-Question ${questionData.questionNumber}/${questionData.totalQuestions}: ${questionData.question}
+Question: ${questionData.question}
 
-ALL AVAILABLE OPTIONS:
+Options:
 ${questionData.options.map((option, index) => `${String.fromCharCode(65 + index)}) ${option}`).join('\n')}
 
-INSTRUCTIONS:
-1. Read the question completely and understand what is being asked
-2. Carefully analyze each option (A, B, C, D) provided above
-3. Apply your knowledge in the relevant subject area
-4. Consider the context and specific wording of the question
-5. Eliminate obviously incorrect options first
-6. Choose the most accurate and complete answer
+Please analyze this question carefully and respond with ONLY the letter of the correct answer (A, B, C, or D). 
+Do not include any explanation or additional text - just the single letter.
 
-RESPONSE FORMAT:
-Provide ONLY the letter of the correct answer (A, B, C, or D).
-Do not include any explanation, reasoning, or additional text.
-Your response must be a single letter only.
-
-ANSWER:`;
+Answer:`;
 }
 
 function parseAIResponse(response) {
@@ -194,29 +183,20 @@ function parseAIResponse(response) {
   if (match) {
     return {
       answer: match[0],
-      confidence: 0.95
+      confidence: 0.9
     };
   }
   
-  // Fallback parsing - look for the first valid letter
+  // Fallback parsing
   const letters = response.match(/[ABCD]/gi);
   if (letters && letters.length > 0) {
     return {
       answer: letters[0].toUpperCase(),
-      confidence: 0.8
+      confidence: 0.7
     };
   }
   
-  // Last resort - look for any letter pattern
-  const anyLetter = response.match(/\b[A-D]\b/gi);
-  if (anyLetter && anyLetter.length > 0) {
-    return {
-      answer: anyLetter[0].toUpperCase(),
-      confidence: 0.6
-    };
-  }
-  
-  throw new Error('Could not parse AI response: ' + response);
+  throw new Error('Could not parse AI response');
 }
 
 async function captureScreenshot() {
